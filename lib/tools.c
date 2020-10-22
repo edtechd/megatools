@@ -22,6 +22,9 @@
 #include <openssl/ssl.h>
 #include <locale.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "config.h"
 #include "tools.h"
 #include "http.h"
@@ -63,6 +66,8 @@ static gboolean opt_disable_resume;
 static gchar *opt_netif;
 static gchar *opt_ipproto;
 
+static gchar *opt_logfile;
+
 static gboolean tool_use_colors = FALSE;
 
 static gboolean opt_debug_callback(const gchar *option_name, const gchar *value, gpointer data, GError **error)
@@ -94,6 +99,25 @@ static gboolean opt_debug_callback(const gchar *option_name, const gchar *value,
 	return TRUE;
 }
 
+void g_print_log(const gchar *buf)
+{
+	FILE *fp;
+	fp = fopen(opt_logfile, "a");
+	fprintf(fp, "%s\n", buf);
+	fclose(fp);
+}
+
+static gboolean opt_log(const gchar *option_name, const gchar *value, gpointer data, GError **error)
+{
+	opt_logfile = (gchar*) g_slice_alloc((256) * sizeof(gchar));
+	g_stpcpy (opt_logfile, value);
+	//fputs("redirect log output\n", stdout);
+	fprintf(stdout, "redirect log output to %s\n", opt_logfile);
+	g_set_print_handler(g_print_log);	
+	g_set_printerr_handler(g_print_log);	
+	return TRUE;
+}
+
 static GOptionEntry basic_options[] = {
 	{ "config", '\0',
                 0, G_OPTION_ARG_FILENAME, &opt_config,
@@ -104,6 +128,9 @@ static GOptionEntry basic_options[] = {
 	{ "debug", '\0',
                 G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, opt_debug_callback,
                 "Enable debugging output", "OPTS" },
+	{ "log", '\0',
+                G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, opt_log,
+                "Enable log", "PATH" },
 	{ "version", '\0',
                 0, G_OPTION_ARG_NONE, &opt_version,
                 "Show version information", NULL },
@@ -330,7 +357,7 @@ void tool_show_progress(const gchar *file, const struct mega_status_data *data)
 				ESC_GREEN "%s" ESC_BLUE " of %s" ESC_NORMAL,
 				file, percentage, done_str, total_str);
 		} else {
-			g_print("%s: %.2f%% - %s of %s", file, percentage, done_str, total_str);
+			g_print("%s:: %.2f%% - %"G_GINT64_FORMAT" of %"G_GINT64_FORMAT , file, percentage, now_done, data->progress.total);
 		}
 
 		g_print("%s", tool_is_stdout_tty() ? ESC_CLREOL "\r" : "\n");
@@ -350,7 +377,7 @@ void tool_show_progress(const gchar *file, const struct mega_status_data *data)
 				" (%s/s)",
 				file, percentage, done_str, total_str, rate_str);
 		} else {
-			g_print("%s: %.2f%% - %s of %s (%s/s)", file, percentage, done_str, total_str, rate_str);
+			g_print("%s:: %.2f%% - %"G_GINT64_FORMAT" of %"G_GINT64_FORMAT" (%s/s)", file, percentage, now_done, data->progress.total, rate_str);
 		}
 
 		g_print("%s", tool_is_stdout_tty() ? ESC_CLREOL "\r" : "\n");
